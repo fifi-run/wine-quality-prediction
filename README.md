@@ -1,56 +1,45 @@
 # Wine Quality Prediction: LASSO and Random Forest
 
 ## Overview
+This project uses physicochemical measurements from the UCI Red Wine Quality dataset to study wine quality scores. The dataset contains 1,599 red-wine observations, 11 physicochemical predictors and a quality score. The CSV is semicolon-delimited.
 
-This project uses physicochemical measurements from the UCI Red Wine Quality dataset to predict wine quality scores. The submitted analysis combines a regularised linear regression approach (LASSO) with Random Forest modelling and explores numeric prediction and categorical quality classification.
+The coursework explored both numeric score prediction and categorical quality classification. These are distinct prediction tasks and their metrics should be reported separately.
 
-**Dataset:** 1,599 red-wine observations, 11 physicochemical predictors and a quality score. The source CSV is semicolon-delimited.
+## Methods
+- Exploratory data analysis and correlation inspection.
+- IQR-based outlier review; the original coursework also applied domain-informed filters.
+- LASSO regression with cross-validation for penalty selection.
+- Random Forest regression and Random Forest classification.
+- Holdout evaluation using RMSE, MAE and R-squared for regression, and confusion-matrix/class-level metrics for classification.
 
-## Methods in the supplied analysis
-
-- Exploratory data analysis, summary statistics and correlation visualisation.
-- Outlier review using IQR counts followed by domain-informed value filters.
-- LASSO regression using glmnet and 10-fold cross-validation to select the penalty parameter.
-- Random Forest classification using randomForest, including tuning and feature-importance analysis.
-- Classification evaluation using a confusion matrix, accuracy, Kappa and class-level metrics.
-- Regression-style evaluation using MSE, RMSE, MAE and R-squared.
-
-## Results reported in the submitted report
-
+## Results in the original submitted report
 | Model / task | Reported result |
 |---|---:|
 | LASSO regression | RMSE 0.675; MAE 0.537; R-squared 0.370 |
 | Random Forest classification | Accuracy 0.942; Kappa 0.910 |
 | Random Forest numeric-score comparison (as reported) | RMSE 0.261; MAE 0.0614; R-squared 0.896 |
 
-The report identifies alcohol as the strongest Random Forest feature, followed by sulphates and total sulfur dioxide. It also notes that common quality classes (especially scores 5–7) are predicted more reliably than rare edge classes.
+These are historical coursework figures, not outputs from the revised script. The original report's adjusted R-squared value of 8.92777 is not reproduced because it is outside the valid range for the usual adjusted R-squared statistic. The numeric Random Forest comparison is also not directly comparable with the LASSO regression unless both are evaluated as the same task on the same holdout observations.
 
-## Important interpretation caveats
+## Curated code and data
+- `R/wine_quality_analysis.R`: project-relative workflow with a fixed 80/20 stratified split. It evaluates LASSO and Random Forest regression on the same holdout set, then evaluates Random Forest classification separately.
+- `data/DATASET_ATTRIBUTION.md`: dataset citation and CC BY 4.0 attribution details.
 
-- LASSO is fitted as a regression model, while the principal Random Forest result is a classification model. Converting class predictions to numeric scores and comparing RMSE/R-squared with LASSO regression is not a clean like-for-like comparison. Classification metrics and regression metrics should be reported separately.
-- The report's table gives an adjusted R-squared value of 8.92777 for LASSO, which is outside the valid range for the usual adjusted R-squared statistic. It is not reproduced as a valid performance measure here.
-- The headline classification accuracy should be read alongside per-class recall and the confusion matrix, especially because the report notes weak recognition of rare quality classes.
-- The original analysis applies domain-based filters after exploratory IQR analysis; the filters and their impact on the data distribution should be justified.
-- A fixed random seed is added in the curated script for repeatability, so exact numerical results may differ from the original coursework run.
-- An additional exploratory LASSO variant in the submitted materials predicts on the same observations used to fit the model and assumes a preloaded data frame. Its errors are in-sample and must not be described as test performance; it is not included in this curated repository.
-
-## Code and data
-
-- R/wine_quality_analysis.R: curated project-relative workflow based on the supplied primary R script.
-- data/DATASET_ATTRIBUTION.md: official source and licence details.
-
-The raw red-wine CSV is not committed. Obtain it from the UCI record linked below and place it at data/winequality-red.csv.
+The raw CSV is not committed. Download the red-wine subset from the UCI record and place it at `data/winequality-red.csv`.
 
 ## Run
+Install R and the packages `readr`, `dplyr`, `glmnet`, `randomForest` and `caret`. From the repository root:
 
-Install the imported packages (caret, glmnet, randomForest, ggplot2, dplyr, corrplot, GGally, reshape2) and then run source("R/wine_quality_analysis.R").
+```r
+source("R/wine_quality_analysis.R")
+```
 
-## Dataset citation and licence
+The revised script has not been executed end-to-end in this update. Its results should not be quoted until the authorised input data is supplied and the script is run in a recorded R environment.
 
+## Dataset citation
 Cortez, P., Cerdeira, A., Almeida, F., Matos, T., & Reis, J. (2009). *Wine Quality* [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C56S3T
 
-The UCI record identifies the dataset licence as **CC BY 4.0**. Retain attribution when reusing or adapting the data: https://archive.ics.uci.edu/dataset/186/wine+quality.
+The UCI record specifies CC BY 4.0: https://archive.ics.uci.edu/dataset/186/wine+quality
 
-## Future improvements
-
-Use a stratified, fixed train/validation/test split; compare ordinal classification, regression and ranking objectives separately; avoid domain filters unless justified; tune hyperparameters only inside training folds; report balanced accuracy and per-class precision/recall/F1; and compare LASSO with Random Forest on the same regression target if regression is the research question.
+## Limitations and next steps
+Use repeated or nested resampling for more stable estimates, report class-level recall/F1 and balanced accuracy, justify outlier filters, and consider ordinal modelling because quality scores are ordered categories.
