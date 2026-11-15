@@ -1,95 +1,35 @@
-# Wine quality analysis: LASSO regression and Random Forest classification
-# Curated from the submitted coursework script. Regression and classification
-# are evaluated separately because their metrics answer different questions.
-#
-# Expected input: data/winequality-red.csv (semicolon-delimited)
-# Packages: caret, glmnet, randomForest, ggplot2, dplyr, corrplot, GGally, reshape2
-
-required <- c("caret", "glmnet", "randomForest", "ggplot2", "dplyr",
-              "corrplot", "GGally", "reshape2")
-missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
-if (length(missing)) {
-  stop("Install required packages first: ", paste(missing, collapse = ", "))
-}
-
-library(caret)
-library(glmnet)
-library(randomForest)
-library(ggplot2)
-library(dplyr)
-library(corrplot)
-library(GGally)
-library(reshape2)
-
-data_path <- file.path("data", "winequality-red.csv")
-if (!file.exists(data_path)) {
-  stop("Missing input: ", data_path,
-       ". Download the UCI red-wine file and save it in this project data folder.")
-}
-
-wine <- read.csv(data_path, sep = ";")
-stopifnot("quality" %in% names(wine))
-predictors <- setdiff(names(wine), "quality")
-
-# Outlier counts based on the 1.5-IQR rule (not automatically discarded).
-iqr_outlier_counts <- vapply(wine[predictors], function(x) {
-  bounds <- quantile(x, c(0.25, 0.75), na.rm = TRUE)
-  spread <- IQR(x, na.rm = TRUE)
-  sum(x < bounds[1] - 1.5 * spread | x > bounds[2] + 1.5 * spread, na.rm = TRUE)
-}, integer(1))
-print(iqr_outlier_counts)
-
-# The submitted analysis also used domain-informed filters. They are retained
-# below for comparability; justify each threshold before using in new research.
-wine_clean <- wine |>
-  filter(citric.acid <= 1.5,
-         chlorides <= 0.2,
-         pH >= 2.5 & pH <= 4.2,
-         sulphates >= 0.2 & sulphates <= 1.5,
-         density >= 0.975 & density <= 1.02,
-         fixed.acidity >= 3 & fixed.acidity <= 12,
-         volatile.acidity <= 1.5,
-         alcohol >= 7 & alcohol <= 16)
-
-set.seed(42)
-train_index <- caret::createDataPartition(wine_clean$quality, p = 0.75, list = FALSE)
-train <- wine_clean[train_index, , drop = FALSE]
-test <- wine_clean[-train_index, , drop = FALSE]
-
-x_train <- as.matrix(train[, predictors, drop = FALSE])
-x_test <- as.matrix(test[, predictors, drop = FALSE])
-y_train <- train$quality
-y_test <- test$quality
-
-# Task A: numeric quality-score regression with LASSO.
-set.seed(42)
-lasso_cv <- glmnet::cv.glmnet(x_train, y_train, alpha = 1, nfolds = 10)
-lasso_prediction <- as.numeric(predict(lasso_cv, newx = x_test, s = "lambda.min"))
-regression_metrics <- data.frame(
-  RMSE = sqrt(mean((y_test - lasso_prediction)^2)),
-  MAE = mean(abs(y_test - lasso_prediction)),
-  R_squared = 1 - sum((y_test - lasso_prediction)^2) /
-    sum((y_test - mean(y_test))^2)
-)
-print(regression_metrics)
-
-# Task B: categorical quality classification with Random Forest.
-# This is a separate task and must not be compared numerically to regression
-# metrics as though the prediction targets were identical.
-train$quality_class <- factor(train$quality)
-test$quality_class <- factor(test$quality, levels = levels(train$quality_class))
-rf_data <- train[, c(predictors, "quality_class")]
-set.seed(42)
-rf_model <- randomForest::randomForest(quality_class ~ ., data = rf_data,
-                                       ntree = 500, importance = TRUE)
-rf_prediction <- predict(rf_model, newdata = test[, predictors, drop = FALSE])
-rf_prediction <- factor(rf_prediction, levels = levels(test$quality_class))
-cm <- caret::confusionMatrix(rf_prediction, test$quality_class)
-print(cm)
-print(caret::confusionMatrix(rf_prediction, test$quality_class,
-                             mode = "everything")$byClass)
-print(randomForest::importance(rf_model))
-varImpPlot(rf_model)
-
-# Report regression and classification metrics in separate tables.
-# For imbalanced classes, include per-class recall/F1 and balanced accuracy.
+# Red Wine Quality: regression and classification baselines
+# Place the UCI red-wine file at data/winequality-red.csv (semicolon-delimited).
+required <- c("readr","dplyr","glmnet","randomForest","caret")
+missing <- required[!vapply(required,requireNamespace,logical(1),quietly=TRUE)]
+if(length(missing)) stop("Install packages: ",paste(missing,collapse=", "))
+suppressPackageStartupMessages({library(readr);library(dplyr);library(glmnet);library(randomForest);library(caret)})
+input <- file.path("data","winequality-red.csv")
+if(!file.exists(input)) stop("Missing ",input,"; see data/DATASET_ATTRIBUTION.md.")
+wine <- read_delim(input,delim=";",show_col_types=FALSE) |> filter(complete.cases(.))
+if(!"quality" %in% names(wine)) stop("Expected target column quality.")
+set.seed(123); idx <- caret::createDataPartition(wine$quality,p=.8,list=FALSE)
+train <- wine[idx,,drop=FALSE]; test <- wine[-idx,,drop=FALSE]
+xtr <- as.matrix(select(train,-quality)); xte <- as.matrix(select(test,-quality))
+ytr <- train$quality; yte <- test$quality
+# Regression: tune lambda on training data only; test set remains held out.
+set.seed(123); lasso <- cv.glmnet(xtr,ytr,alpha=1,nfolds=10)
+lp <- as.numeric(predict(lasso,newx=xte,s="lambda.min"))
+metrics <- data.frame(model="LASSO regression",RMSE=sqrt(mean((yte-lp)^2)),MAE=mean(abs(yte-lp)),R_squared=1-sum((yte-lp)^2)/sum((yte-mean(yte))^2))
+# Random Forest regression on exactly the same holdout observations.
+set.seed(123); rfreg <- randomForest(x=xtr,y=ytr,ntree=500,importance=TRUE)
+rp <- as.numeric(predict(rfreg,newdata=xte))
+metrics <- bind_rows(metrics,data.frame(model="Random Forest regression",RMSE=sqrt(mean((yte-rp)^2)),MAE=mean(abs(yte-rp)),R_squared=1-sum((yte-rp)^2)/sum((yte-mean(yte))^2)))
+# Classification is a separate task; do not compare accuracy with regression R-squared.
+levels_q <- sort(unique(wine$quality))
+trc <- train |> mutate(quality=factor(quality,levels=levels_q))
+tec <- test |> mutate(quality=factor(quality,levels=levels_q))
+set.seed(123); rfcls <- randomForest(quality~.,data=trc,ntree=500,importance=TRUE)
+pred <- predict(rfcls,newdata=tec); cm <- caret::confusionMatrix(pred,tec$quality)
+write.csv(metrics,"regression_metrics.csv",row.names=FALSE)
+write.csv(as.data.frame(cm$table),"classification_confusion_matrix.csv",row.names=FALSE)
+write.csv(as.data.frame(cm$byClass),"classification_per_class_metrics.csv")
+write.csv(data.frame(metric=names(cm$overall),value=as.numeric(cm$overall)),"classification_overall_metrics.csv",row.names=FALSE)
+write.csv(randomForest::importance(rfreg),"rf_regression_feature_importance.csv")
+write.csv(randomForest::importance(rfcls),"rf_classification_feature_importance.csv")
+message("Saved regression and classification results separately. This is one holdout split; use repeated/nested resampling for stronger estimates.")
